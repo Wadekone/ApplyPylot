@@ -1,4 +1,4 @@
-# ApplyPilot
+# ApplyPylot
 
 Local job-search pipeline: fetch postings from RapidAPI (JSearch) → dedupe in SQLite → score with Gemini structured output → review in a Rich terminal dashboard.
 
