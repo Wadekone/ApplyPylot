@@ -7,6 +7,7 @@ from database import get_connection, insert_job
 
 def fetch_jobs(query: str = config.DEFAULT_QUERY, location: str = config.DEFAULT_LOCATION,
                page: int = 1, num_pages: int = 1) -> list[dict]:
+    """Call the JSearch search endpoint and return the raw job records."""
     if not config.RAPIDAPI_KEY:
         raise RuntimeError("RAPIDAPI_KEY is not set")
     response = requests.get(
@@ -40,6 +41,7 @@ def normalize(item: dict) -> dict | None:
 
 
 def store_jobs(items: list[dict]) -> int:
+    """Normalize and insert records; returns how many were new (duplicates are skipped)."""
     new_count = 0
     with get_connection() as conn:
         for item in items:

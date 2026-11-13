@@ -13,89 +13,30 @@ Plus guardrail tests that feed deliberately malformed LLM output to the parser.
 Modes:
   python eval.py          offline: deterministic mock LLM, no API key needed (CI-safe)
   python eval.py --live   real Gemini calls (needs GEMINI_API_KEY)
+
+Each run writes a markdown summary: docs/eval-report.md (live) or
+docs/eval-report-offline.md (offline). Override with --report PATH.
 """
 import argparse
-import logging
 import json
+import logging
 import os
 import sys
 import tempfile
-from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from rich.console import Console
 from rich.table import Table
 
 import config
+from mock_llm import Sample, load_samples, make_mock_backend
 
 console = Console()
 
 
-@dataclass
-class Sample:
-    key: str
-    title: str
-    company: str
-    expected: str  # PASS / BORDERLINE / FAIL
-    description: str
-    mock_score: float  # what the offline mock LLM returns
-
-
-SAMPLES: list[Sample] = [
-    Sample("delivery_lead_ecom", "Senior Software Delivery Lead", "ShopStack", "PASS",
-           "Remote (US). Lead delivery of our e-commerce platform across 6 agile squads. Own release "
-           "governance, PMO cadence, and portfolio reporting. Hands-on SQL for delivery metrics, comfort "
-           "reviewing system architecture, and experience automating workflows. Exposure to LLM integrations "
-           "and evaluation a plus. 10+ years delivery management. $185k-$215k + equity.", 8.9),
-    Sample("pmo_director", "Director, PMO & Delivery Operations", "Fintegrate", "PASS",
-           "Fully remote. Build and run the enterprise PMO for a 300-person engineering org. Define agile "
-           "governance, intake, capacity planning and OKR tracking. Partner with architects on ERP and "
-           "payments system migrations. SQL/BI fluency required; process automation experience valued. "
-           "Comp $200k-$240k base.", 8.4),
-    Sample("ai_delivery_manager", "Technical Delivery Manager, AI Platform", "Northwind AI", "PASS",
-           "Remote-first. Drive delivery of LLM-powered features: plan roadmaps, run sprint governance, "
-           "coordinate eval pipelines with ML engineers, and own launch readiness. Must read SQL and "
-           "understand service architecture. 8+ years technical program/delivery management. $190k+.", 8.1),
-    Sample("program_manager_hybrid", "Program Manager", "MedCore Systems", "BORDERLINE",
-           "Hybrid, 3 days/week in Columbus, OH. Manage EHR integration programs with vendors. Waterfall "
-           "and some agile. Status reporting, RAID logs, stakeholder comms. 5+ years PM. $120k-$135k.", 6.2),
-    Sample("scrum_master", "Scrum Master", "RetailWorks", "BORDERLINE",
-           "Remote. Facilitate ceremonies for two e-commerce squads, remove impediments, coach on Scrum. "
-           "No people management or portfolio scope. CSM required. $105k-$120k.", 5.6),
-    Sample("ops_manager_ecom", "E-commerce Operations Manager", "Bloom & Co", "BORDERLINE",
-           "Remote. Own order fulfillment ops, vendor SLAs and Shopify configuration. Some SQL reporting. "
-           "Limited software delivery scope; works with an outsourced dev agency. $110k-$130k.", 6.8),
-    Sample("junior_coordinator", "Project Coordinator (Entry Level)", "BuildRight", "FAIL",
-           "On-site in Dallas, TX. Schedule meetings, take notes, update Smartsheet. 0-2 years experience. "
-           "$48k-$55k.", 1.8),
-    Sample("backend_ic", "Senior Backend Engineer (Go)", "StreamCo", "FAIL",
-           "Remote. Write high-throughput Go microservices, own on-call, design Kafka pipelines. Pure IC "
-           "role, no delivery or program management responsibilities. $170k-$200k.", 3.2),
-    Sample("sales_ae", "Enterprise Account Executive", "CloudSell", "FAIL",
-           "Remote. Carry a $1.2M quota selling SaaS to enterprise retail. Prospecting, demos, negotiation. "
-           "OTE $260k.", 1.1),
-    Sample("construction_pm", "Construction Project Manager", "Apex Builders", "FAIL",
-           "On-site, travel to job sites. Manage subcontractors, budgets and permits for commercial builds. "
-           "PMP preferred. OSHA 30 required. $95k-$115k.", 2.4),
-]
+SAMPLES: list[Sample] = load_samples()
 
 BAND_ORDER = ["FAIL", "BORDERLINE", "PASS"]
-
-
-def make_mock_backend(samples: list[Sample]):
-    """Deterministic stand-in for Gemini: returns well-formed JSON keyed off the description."""
-    by_desc = {s.description: s for s in samples}
-
-    def backend(system_prompt: str, content: str) -> str:
-        desc = content.split("Job Description:\n", 1)[-1]
-        s = by_desc[desc]
-        return json.dumps({
-            "match_score": s.mock_score,
-            "role_fit_summary": f"Mock evaluation of '{s.title}' at {s.company}.",
-            "key_requirements": ["delivery management", "stakeholder communication"],
-            "missing_skills": [] if s.expected == "PASS" else ["scope or seniority below target"],
-            "eval_status": config.status_for_score(s.mock_score),
-        })
-    return backend
 
 
 def check_sample(sample: Sample, backend, job_id: int) -> dict:
@@ -170,12 +111,66 @@ def guardrail_tests() -> list[tuple[str, bool, str]]:
     return out
 
 
+def write_report(path: str, mode: str, results: list[dict], g_results: list[tuple[str, bool, str]],
+                 failures: list[str]) -> None:
+    """Write a short markdown summary of one eval run."""
+    n = len(results)
+    exact = sum(1 for r in results if r["band"] == "exact")
+    near = sum(1 for r in results if r["band"] == "near")
+    misses = sum(1 for r in results if r["band"] == "miss")
+    schema_ok = sum(1 for r in results if not r["errors"])
+    corrected = sum(1 for r in results if r["corrected"])
+    guard_ok = sum(1 for _, ok, _ in g_results if ok)
+    icon = {"exact": "✅ pass", "near": "⚠️ near", "miss": "❌ miss"}
+
+    lines = [
+        "# ApplyPylot eval report",
+        "",
+        f"- **Mode:** {mode}",
+        f"- **Run at:** {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
+        f"- **Result:** {'PASSED' if not failures else 'FAILED (' + ', '.join(failures) + ')'}",
+        "",
+        *([] if mode.startswith("LIVE") else [
+            "> Offline run: the mock LLM returns preset scores, so accuracy here only shows the pipeline,",
+            "> validation and storage work end to end. Model accuracy comes from a `--live` run.",
+            ""]),
+        "| Metric | Value |",
+        "|---|---|",
+        f"| Status accuracy (exact band) | {exact}/{n} ({exact / n:.0%}) |",
+        f"| One band off / two bands off | {near} / {misses} |",
+        f"| Schema + validation compliance | {schema_ok}/{n} |",
+        f"| LLM answers with status corrected from score | {corrected} |",
+        f"| Guardrail & storage tests | {guard_ok}/{len(g_results)} |",
+        "",
+        "| Sample | Expected | Got | Score | Result |",
+        "|---|---|---|---|---|",
+    ]
+    for r in results:
+        s = r["sample"]
+        result = "❌ error: " + "; ".join(r["errors"]) if r["errors"] else icon[r["band"]]
+        if r["corrected"]:
+            result += " (status corrected)"
+        score = f"{r['score']:.1f}" if r["score"] is not None else "-"
+        lines.append(f"| {s.key} | {s.expected} | {r['status'] or '-'} | {score} | {result} |")
+    failed_guards = [f"- {name}: {note}" for name, ok, note in g_results if not ok]
+    if failed_guards:
+        lines += ["", "**Failed guardrails:**", *failed_guards]
+
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--live", action="store_true", help="call the real Gemini API instead of the mock")
     p.add_argument("--min-exact", type=float, default=0.7,
                    help="live mode: minimum fraction of exact band matches to pass (default 0.7)")
+    p.add_argument("--report", help="markdown report path (default: docs/eval-report.md for --live, "
+                                    "docs/eval-report-offline.md otherwise)")
     args = p.parse_args()
+    report_path = args.report or os.path.join(
+        config.BASE_DIR, "docs", "eval-report.md" if args.live else "eval-report-offline.md")
     logging.basicConfig(level=logging.ERROR)  # the guardrail test triggers an expected warning
 
     # Isolated scratch DB so evals never touch data/applypylot.db
@@ -248,6 +243,9 @@ def main() -> int:
             failures.append(f"exact band accuracy {exact/n:.0%} < {args.min_exact:.0%}")
     elif exact < n:
         failures.append("mock scoring mismatch")
+
+    write_report(report_path, mode, results, g_results, failures)
+    console.print(f"Report written to {os.path.relpath(report_path)}")
 
     if failures:
         console.print(f"[bold red]EVAL FAILED:[/] {', '.join(failures)}")

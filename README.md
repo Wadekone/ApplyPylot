@@ -1,55 +1,91 @@
 # ApplyPylot
 
-A local CLI that pulls job postings from RapidAPI (JSearch), dedupes them in SQLite, scores each one against a target profile (Senior Delivery Lead / PMO / Operations) with Gemini structured output, and shows the ranked results in a terminal dashboard.
+[![CI](https://github.com/Wadekone/ApplyPylot/actions/workflows/ci.yml/badge.svg)](https://github.com/Wadekone/ApplyPylot/actions/workflows/ci.yml)
 
-**Why:** I was searching for senior delivery roles and spending most of my time reading postings that were junior, on-site, or not delivery roles at all. ApplyPylot does the first-pass triage, so I only read the roles worth reading.
+ApplyPylot is a local CLI that pulls job postings from an API, scores each one with an LLM against a target profile (Senior Delivery Lead / PMO / Operations), and ranks them in a terminal dashboard. I built it because most of my job-search time went into reading postings that were junior, on-site, or not delivery roles at all. It does the first-pass triage so I only read the roles worth reading.
 
-## Setup
+```mermaid
+flowchart LR
+    A["RapidAPI<br/>(JSearch)"] -->|JSON postings| B[("SQLite<br/>dedup by external_id")]
+    B -->|new jobs| C["Gemini<br/>structured output"]
+    C -->|raw JSON| D{"Validation<br/>(Pydantic)"}
+    D -->|malformed| X["Rejected,<br/>logged, skipped"]
+    D -->|valid| E["Status derived<br/>from score"]
+    E --> F[("SQLite<br/>evaluations")]
+    F --> G["Rich<br/>dashboard"]
+```
 
-Requires **Python 3.11+**. The `python3` that ships with macOS is 3.9, so install a newer one first (`brew install python@3.12`).
+## Quick start (about 5 minutes, no API keys)
+
+Requires Python 3.11+ (CI uses 3.12). The `python3` that ships with macOS is 3.9, so install a newer one first: `brew install python@3.12`.
 
 ```bash
 git clone https://github.com/Wadekone/ApplyPylot.git && cd ApplyPylot
 python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python eval.py            # offline check, no keys needed
-cp .env.example .env      # add GEMINI_API_KEY and RAPIDAPI_KEY for real runs
+pip install -r requirements-dev.txt
+
+python cli.py demo     # full pipeline on 10 bundled postings, mock LLM
+python eval.py         # offline eval, writes docs/eval-report-offline.md
+pytest -q              # unit tests
 ```
 
-## Usage
+`demo` runs the real ingestion, dedup, validation, storage and dashboard code. Only the LLM call is replaced by a mock with preset scores. It uses a throwaway database.
+
+<!-- SCREENSHOT: dashboard. Save as docs/screenshots/dashboard.png, then replace this comment with:
+![Dashboard](docs/screenshots/dashboard.png) -->
+
+**With real data:** `cp .env.example .env`, add `GEMINI_API_KEY` and `RAPIDAPI_KEY`, then:
 
 ```bash
 python cli.py run                                   # fetch → evaluate → dashboard
-python cli.py fetch --query "PMO Director" --pages 2
-python cli.py evaluate --limit 20
 python cli.py dashboard --min-score 6 --status PASS --search fintech
 python cli.py show 42                               # requirements, gaps, apply link
 ```
 
 ## Evals
 
-`python eval.py` runs 10 hand-written job descriptions with expected outcomes (3 PASS, 3 BORDERLINE, 4 FAIL) through the full parse → validate → store path. It checks:
+`eval.py` runs 10 hand-written postings with an expected outcome (3 PASS, 3 BORDERLINE, 4 FAIL) through parse → validate → store, then 13 guardrail checks.
 
-- **Schema compliance:** every output parses and matches `JobEvaluationSchema`.
-- **Output validation:** score is 0–10, status agrees with score, summary and requirements are non-empty, and the result round-trips through SQLite unchanged.
-- **Guardrails:** bad JSON, out-of-range scores, unknown statuses, missing fields and wrong types are rejected. A contradictory status is corrected. Threshold edges (7.5 / 7.4 / 5.0 / 4.9) fall in the right band. Duplicate `external_id`s are skipped.
+| Check | What it verifies |
+|---|---|
+| Schema compliance | Every answer parses and matches `JobEvaluationSchema` |
+| Output validation | Score in 0–10, status agrees with score, non-empty summary and requirements, unchanged after a SQLite round-trip |
+| Status accuracy | Status matches the expected band: exact, one band off, or two bands off |
+| Guardrails | Bad JSON, out-of-range score, unknown status, missing field, blank summary and wrong type are rejected. A contradictory status is corrected. Duplicate `external_id` is skipped |
 
-By default a deterministic mock stands in for the LLM, so the run needs no keys and works in CI. `python eval.py --live` calls Gemini instead and fails on any PASS↔FAIL miss or on fewer than 70% exact band matches.
+**Thresholds** (`config.py`): **PASS** ≥ 7.5 · **BORDERLINE** 5.0–7.4 · **FAIL** < 5.0. A `--live` run fails on any PASS↔FAIL miss or on fewer than 70% exact matches.
+
+**Latest run:** offline, mock LLM ([full report](docs/eval-report-offline.md))
+
+| Metric | Result |
+|---|---|
+| Schema + validation compliance | 10/10 |
+| Guardrail & storage tests | 13/13 |
+| Status accuracy | 10/10, preset by the mock, so not a model measurement |
+| LLM answers corrected from score | 0 |
+
+The live Gemini run (`python eval.py --live`, which writes `docs/eval-report.md`) has not been run yet. Until it is, the model's real accuracy is unmeasured.
+
+<!-- SCREENSHOT: eval output. Save as docs/screenshots/eval.png, then replace this comment with:
+![Eval output](docs/screenshots/eval.png) -->
 
 ## Design decisions
 
-- **Status is derived from score.** The model returns both, but code re-derives `PASS` / `BORDERLINE` / `FAIL` from `match_score` using thresholds in `config.py`. A self-contradicting answer (e.g. `PASS` at 4.0) is corrected and counted, never stored as-is.
-- **Malformed output is rejected.** Anything that fails JSON parsing or Pydantic validation raises `EvaluationError`. That job is skipped and the batch keeps going.
-- **Dedup by `external_id`.** The `jobs.external_id` column is `UNIQUE`, and inserts use `INSERT OR IGNORE`, so re-fetching never creates duplicates.
-- **Low temperature (0.2) plus a response schema** to keep output stable and parseable.
+The full context for each is in [docs/decisions.md](docs/decisions.md).
 
-## Known limitations
+- **Status is derived from the score.** The model returns both, and they can disagree (PASS at 4.0). A ranking needs one source of truth, so code recomputes the status from the score using thresholds defined once, and counts every correction.
+- **Malformed output is rejected.** A wrong score silently moves a job up or down the list, while a skipped job is visible and can be retried. Anything that fails parsing or validation is logged and skipped, and the batch continues.
+- **Dedup by `external_id`.** The same posting returns on every fetch. A `UNIQUE` constraint on the source's job ID, with `INSERT OR IGNORE`, makes re-fetching safe and puts the guarantee in the database rather than in code.
 
-- `--live` evals have not yet been run against Gemini, so the real model's accuracy is unmeasured.
-- Dedup relies on JSearch's job ID. The same role posted under different IDs (e.g. on two boards) can still appear twice.
-- The target profile is hard-coded in the prompt (`evaluator.py`). It isn't matched against a CV.
-- One source (JSearch). There is no retry or backoff on API errors, only a fixed delay between LLM calls.
-- 10 eval samples is a smoke test, not a benchmark.
+## Known limitations and next steps
+
+| Limitation | Next step |
+|---|---|
+| Live accuracy is unmeasured | Run `eval.py --live` and commit the report; grow the set beyond 10 samples |
+| Dedup misses the same role posted under different source IDs | Add a secondary match on normalized title + company |
+| Target profile is hard-coded in the prompt | Load the profile (or a CV) from a config file |
+| One source, no retry or backoff on API errors | Add retries with backoff, then a second source |
+| Mock scores are fixtures, not a model | Add recorded real Gemini answers as regression fixtures |
 
 ## How it was built
 

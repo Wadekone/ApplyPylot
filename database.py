@@ -2,7 +2,6 @@
 import json
 import os
 import sqlite3
-from typing import Optional
 
 import config
 
@@ -38,7 +37,8 @@ CREATE INDEX IF NOT EXISTS idx_evals_score ON evaluations(match_score);
 # Note: external_id and job_id are UNIQUE, so SQLite already indexes them.
 
 
-def get_connection(path: Optional[str] = None) -> sqlite3.Connection:
+def get_connection(path: str | None = None) -> sqlite3.Connection:
+    """Open a SQLite connection with dict-like rows and foreign keys enabled."""
     path = path or config.db_path()
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     conn = sqlite3.connect(path)
@@ -48,6 +48,7 @@ def get_connection(path: Optional[str] = None) -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    """Create the tables and indexes if they don't exist (safe to run repeatedly)."""
     with get_connection() as conn:
         conn.executescript(SCHEMA)
 
@@ -65,7 +66,8 @@ def insert_job(conn: sqlite3.Connection, job: dict) -> bool:
     return cur.rowcount == 1
 
 
-def get_unevaluated_jobs(limit: Optional[int] = None) -> list[sqlite3.Row]:
+def get_unevaluated_jobs(limit: int | None = None) -> list[sqlite3.Row]:
+    """Return jobs that have a description but no evaluation yet, oldest first."""
     sql = """
         SELECT j.* FROM jobs j
         LEFT JOIN evaluations e ON e.job_id = j.id
@@ -110,7 +112,8 @@ def save_evaluation(job_id: int, evaluation: dict, raw_json: str) -> None:
         )
 
 
-def get_job_with_evaluation(job_id: int) -> Optional[sqlite3.Row]:
+def get_job_with_evaluation(job_id: int) -> sqlite3.Row | None:
+    """Return one job joined with its evaluation (evaluation fields are None if not scored)."""
     with get_connection() as conn:
         return conn.execute(
             """

@@ -15,6 +15,7 @@ STATUS_STYLE = {"PASS": "bold green", "BORDERLINE": "bold yellow", "FAIL": "bold
 
 
 def display_dashboard(min_score: float = 7.0, search: str | None = None, status: str | None = None) -> None:
+    """Print evaluated roles at or above min_score, best first, with optional text/status filters."""
     sql = """
         SELECT j.id, j.title, j.company, j.location, e.match_score, e.eval_status, e.role_fit_summary
         FROM jobs j JOIN evaluations e ON j.id = e.job_id
@@ -61,6 +62,7 @@ def display_dashboard(min_score: float = 7.0, search: str | None = None, status:
 
 
 def show_job(job_id: int) -> None:
+    """Print full detail for one job: metadata, score, requirements and gaps."""
     row = get_job_with_evaluation(job_id)
     if not row:
         console.print(f"[red]No job with id {job_id}[/]")
@@ -80,6 +82,7 @@ def show_job(job_id: int) -> None:
 
 
 def main() -> None:
+    """Parse the command line and dispatch to the matching subcommand."""
     logging.basicConfig(level=logging.WARNING)
     p = argparse.ArgumentParser(prog="applypylot", description="ApplyPylot job search CLI")
     sub = p.add_subparsers(dest="cmd")
@@ -102,6 +105,8 @@ def main() -> None:
     s = sub.add_parser("show", help="Show full detail for one job")
     s.add_argument("job_id", type=int)
 
+    sub.add_parser("demo", help="Full pipeline on bundled samples with a mock LLM (no API keys)")
+
     r = sub.add_parser("run", help="Full pipeline: init, fetch, evaluate, dashboard")
     r.add_argument("--query", default=config.DEFAULT_QUERY)
     r.add_argument("--location", default=config.DEFAULT_LOCATION)
@@ -111,6 +116,11 @@ def main() -> None:
     a = p.parse_args()
     if a.cmd is None:
         a = p.parse_args(["dashboard"])
+
+    if a.cmd == "demo":
+        from main import run_demo
+        run_demo()
+        return
 
     init_db()  # idempotent
     if a.cmd == "fetch":

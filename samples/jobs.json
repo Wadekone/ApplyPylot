@@ -1,0 +1,82 @@
+[
+  {
+    "key": "delivery_lead_ecom",
+    "title": "Senior Software Delivery Lead",
+    "company": "ShopStack",
+    "expected": "PASS",
+    "description": "Remote (US). Lead delivery of our e-commerce platform across 6 agile squads. Own release governance, PMO cadence, and portfolio reporting. Hands-on SQL for delivery metrics, comfort reviewing system architecture, and experience automating workflows. Exposure to LLM integrations and evaluation a plus. 10+ years delivery management. $185k-$215k + equity.",
+    "mock_score": 8.9
+  },
+  {
+    "key": "pmo_director",
+    "title": "Director, PMO & Delivery Operations",
+    "company": "Fintegrate",
+    "expected": "PASS",
+    "description": "Fully remote. Build and run the enterprise PMO for a 300-person engineering org. Define agile governance, intake, capacity planning and OKR tracking. Partner with architects on ERP and payments system migrations. SQL/BI fluency required; process automation experience valued. Comp $200k-$240k base.",
+    "mock_score": 8.4
+  },
+  {
+    "key": "ai_delivery_manager",
+    "title": "Technical Delivery Manager, AI Platform",
+    "company": "Northwind AI",
+    "expected": "PASS",
+    "description": "Remote-first. Drive delivery of LLM-powered features: plan roadmaps, run sprint governance, coordinate eval pipelines with ML engineers, and own launch readiness. Must read SQL and understand service architecture. 8+ years technical program/delivery management. $190k+.",
+    "mock_score": 8.1
+  },
+  {
+    "key": "program_manager_hybrid",
+    "title": "Program Manager",
+    "company": "MedCore Systems",
+    "expected": "BORDERLINE",
+    "description": "Hybrid, 3 days/week in Columbus, OH. Manage EHR integration programs with vendors. Waterfall and some agile. Status reporting, RAID logs, stakeholder comms. 5+ years PM. $120k-$135k.",
+    "mock_score": 6.2
+  },
+  {
+    "key": "scrum_master",
+    "title": "Scrum Master",
+    "company": "RetailWorks",
+    "expected": "BORDERLINE",
+    "description": "Remote. Facilitate ceremonies for two e-commerce squads, remove impediments, coach on Scrum. No people management or portfolio scope. CSM required. $105k-$120k.",
+    "mock_score": 5.6
+  },
+  {
+    "key": "ops_manager_ecom",
+    "title": "E-commerce Operations Manager",
+    "company": "Bloom & Co",
+    "expected": "BORDERLINE",
+    "description": "Remote. Own order fulfillment ops, vendor SLAs and Shopify configuration. Some SQL reporting. Limited software delivery scope; works with an outsourced dev agency. $110k-$130k.",
+    "mock_score": 6.8
+  },
+  {
+    "key": "junior_coordinator",
+    "title": "Project Coordinator (Entry Level)",
+    "company": "BuildRight",
+    "expected": "FAIL",
+    "description": "On-site in Dallas, TX. Schedule meetings, take notes, update Smartsheet. 0-2 years experience. $48k-$55k.",
+    "mock_score": 1.8
+  },
+  {
+    "key": "backend_ic",
+    "title": "Senior Backend Engineer (Go)",
+    "company": "StreamCo",
+    "expected": "FAIL",
+    "description": "Remote. Write high-throughput Go microservices, own on-call, design Kafka pipelines. Pure IC role, no delivery or program management responsibilities. $170k-$200k.",
+    "mock_score": 3.2
+  },
+  {
+    "key": "sales_ae",
+    "title": "Enterprise Account Executive",
+    "company": "CloudSell",
+    "expected": "FAIL",
+    "description": "Remote. Carry a $1.2M quota selling SaaS to enterprise retail. Prospecting, demos, negotiation. OTE $260k.",
+    "mock_score": 1.1
+  },
+  {
+    "key": "construction_pm",
+    "title": "Construction Project Manager",
+    "company": "Apex Builders",
+    "expected": "FAIL",
+    "description": "On-site, travel to job sites. Manage subcontractors, budgets and permits for commercial builds. PMP preferred. OSHA 30 required. $95k-$115k.",
+    "mock_score": 2.4
+  }
+]

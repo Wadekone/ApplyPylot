@@ -1,7 +1,8 @@
 """LLM evaluation pipeline: structured JSON output, schema validation, and scoring guardrails."""
 import json
 import logging
-from typing import Callable, Literal, Optional
+from collections.abc import Callable
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -61,6 +62,7 @@ LLMBackend = Callable[[str, str], str]
 
 
 def gemini_backend(system_prompt: str, content: str) -> str:
+    """Call Gemini with the response schema and return the raw JSON text."""
     from google import genai  # imported lazily so offline evals don't need credentials
     from google.genai import types
 
@@ -104,7 +106,7 @@ def parse_and_validate(raw: str) -> tuple[dict, bool]:
     return parsed.model_dump(), corrected
 
 
-def evaluate_job_description(description: str, backend: Optional[LLMBackend] = None) -> tuple[dict, str, bool]:
+def evaluate_job_description(description: str, backend: LLMBackend | None = None) -> tuple[dict, str, bool]:
     """Evaluate one job description. Returns (evaluation, raw_json, status_corrected)."""
     if not description or not description.strip():
         raise EvaluationError("Empty job description")
