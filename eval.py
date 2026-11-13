@@ -1,4 +1,4 @@
-"""ApplyPilot evaluation harness.
+"""ApplyPylot evaluation harness.
 
 10 mock job descriptions, each with an expected outcome band. Three layers of checks:
 
@@ -178,9 +178,9 @@ def main() -> int:
     args = p.parse_args()
     logging.basicConfig(level=logging.ERROR)  # the guardrail test triggers an expected warning
 
-    # Isolated scratch DB so evals never touch data/applypilot.db
-    tmpdir = tempfile.mkdtemp(prefix="applypilot-eval-")
-    os.environ["APPLYPILOT_DB_PATH"] = os.path.join(tmpdir, "eval.db")
+    # Isolated scratch DB so evals never touch data/applypylot.db
+    tmpdir = tempfile.mkdtemp(prefix="applypylot-eval-")
+    os.environ["APPLYPYLOT_DB_PATH"] = os.path.join(tmpdir, "eval.db")
     from database import get_connection, init_db, insert_job
     from evaluator import gemini_backend
 
@@ -200,7 +200,7 @@ def main() -> int:
 
     backend = gemini_backend if args.live else make_mock_backend(SAMPLES)
     mode = f"LIVE ({config.GEMINI_MODEL})" if args.live else "OFFLINE (mock LLM)"
-    console.rule(f"ApplyPilot eval — {mode}")
+    console.rule(f"ApplyPylot eval — {mode}")
 
     results = [check_sample(s, backend, job_ids[f"eval-{s.key}"]) for s in SAMPLES]
 

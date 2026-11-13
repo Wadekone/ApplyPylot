@@ -32,7 +32,7 @@ def display_dashboard(min_score: float = 7.0, search: str | None = None, status:
     with get_connection() as conn:
         rows = conn.execute(sql, params).fetchall()
 
-    title = f"ApplyPilot — Evaluated Roles (Min Score: {min_score})"
+    title = f"ApplyPylot — Evaluated Roles (Min Score: {min_score})"
     if search:
         title += f" · search: '{search}'"
     table = Table(title=title)
@@ -81,7 +81,7 @@ def show_job(job_id: int) -> None:
 
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)
-    p = argparse.ArgumentParser(prog="applypilot", description="ApplyPilot job search CLI")
+    p = argparse.ArgumentParser(prog="applypylot", description="ApplyPylot job search CLI")
     sub = p.add_subparsers(dest="cmd")
 
     sub.add_parser("init", help="Initialize the SQLite database")

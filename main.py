@@ -60,7 +60,7 @@ def run_pipeline(query: str, location: str, num_pages: int, min_score: float) ->
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING)
-    p = argparse.ArgumentParser(description="Run the full ApplyPilot pipeline.")
+    p = argparse.ArgumentParser(description="Run the full ApplyPylot pipeline.")
     p.add_argument("--query", default=config.DEFAULT_QUERY)
     p.add_argument("--location", default=config.DEFAULT_LOCATION)
     p.add_argument("--pages", type=int, default=1)

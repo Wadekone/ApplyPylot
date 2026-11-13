@@ -28,7 +28,7 @@ BORDERLINE_THRESHOLD = 5.0
 
 def db_path() -> str:
     """Resolved at call time so tests/evals can point at a scratch database."""
-    return os.environ.get("APPLYPILOT_DB_PATH", os.path.join(BASE_DIR, "data", "applypilot.db"))
+    return os.environ.get("APPLYPYLOT_DB_PATH", os.path.join(BASE_DIR, "data", "applypylot.db"))
 
 
 def status_for_score(score: float) -> str:
